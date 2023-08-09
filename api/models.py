@@ -23,3 +23,10 @@ class Employee(models.Model):
     address = models.TextField()
     dob = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
+
+
+class Gear(models.Model):
+    owner = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='owner')
+    name = models.CharField(max_length=150)
+    gear_type = models.CharField(max_length=100)

@@ -8,17 +8,9 @@ class CompanySerializer(serializers.ModelSerializer):
         model = Company
         fields = '__all__'
 
-# Custom Serializer
-
-
-class WorksAtSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Company
-        fields = ('id', 'name', 'location', 'employee_size')
-
 
 class EmployeeSerializer(serializers.ModelSerializer):
-    works_at = WorksAtSerializer(read_only=True)
+    works_at = CompanySerializer(read_only=True)
 
     class Meta:
         model = Employee
@@ -64,6 +56,40 @@ class EmployeeSerializer(serializers.ModelSerializer):
         gender = data.get('gender')
         if gender not in dict(Employee.GENDER_CHOICES):
             errors['gender'] = "Invalid gender choice."
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return data
+
+
+class GearSerializer(serializers.ModelSerializer):
+    owner = CompanySerializer(read_only=True)
+
+    class Meta:
+        model = Employee
+        fields = '__all__'
+
+    def validate_owner(self, value):
+        if self.partial:
+            return value
+
+        if not (Company.objects.get(pk=value)):
+            raise serializers.ValidationError("Invalid company ID")
+        return value
+
+    def validate(self, data):
+        if self.partial:
+            return data
+
+        errors = {}
+        name = data.get('name')
+        if len(name) < 2:
+            errors['name'] = "At least 2 characters long."
+
+        gear_type = data.get('gear_type')
+        if len(gear_type) < 2:
+            errors['gear_type'] = "At least 2 characters long."
 
         if errors:
             raise serializers.ValidationError(errors)
