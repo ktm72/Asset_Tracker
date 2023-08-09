@@ -1,3 +1,7 @@
+# ERD of the project
+
+![Different Relational Table](./content/assets_tracker_erd.png)
+
 # Install Pipenv
 
 `pip install pipenv`
