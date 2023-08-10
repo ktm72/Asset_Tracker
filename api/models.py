@@ -1,13 +1,14 @@
 from django.db import models
+from datetime import date
+from django.core.exceptions import ValidationError
+from rest_framework.response import Response
+from rest_framework import status
 
 
 class Company(models.Model):
     name = models.CharField(max_length=250)
     location = models.TextField()
     employee_size = models.IntegerField()
-
-    def __str__(self):
-        return self.name
 
 
 class Employee(models.Model):
@@ -23,6 +24,7 @@ class Employee(models.Model):
     address = models.TextField()
     dob = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
+    status = models.BooleanField(default=True)
 
 
 class Gear(models.Model):
@@ -30,3 +32,18 @@ class Gear(models.Model):
         Company, on_delete=models.CASCADE, related_name='owner')
     name = models.CharField(max_length=150)
     gear_type = models.CharField(max_length=100)
+
+
+class GearLog(models.Model):
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='company')
+    device = models.ForeignKey(
+        Gear, on_delete=models.SET_NULL, related_name='device', null=True)
+    employee = models.ForeignKey(
+        Employee, on_delete=models.SET_NULL, related_name='employee', null=True)
+    period = models.IntegerField(default=5)
+    returned = models.BooleanField(default=False)
+    condition = models.TextField()
+    returned_condition = models.TextField(null=True, blank=True)
+    checkout_date = models.DateField(default=date.today)
+    returned_date = models.DateField(null=True, blank=True)

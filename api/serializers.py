@@ -1,6 +1,6 @@
-from .models import Employee
 from rest_framework import serializers
-from . models import Company, Employee
+from datetime import timedelta, date
+from . models import Company, Employee, Gear, GearLog
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -10,29 +10,28 @@ class CompanySerializer(serializers.ModelSerializer):
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
+
     works_at = CompanySerializer(read_only=True)
 
     class Meta:
         model = Employee
         fields = '__all__'
 
-# Override relational data retrieve
     def to_representation(self, instance):
-        data = super().to_representation(instance)
+        representation = super().to_representation(instance)
+        include_company_details = self.context.get(
+            'include_company_details', False)
+        if not include_company_details:
+            # Remove nested works_at field if not required
+            representation['works_at'] = representation['works_at']['name']
+        return representation
 
-        include_works_at = self.context.get('include_works_at', False)
-        if not include_works_at:
-            data['works_at'] = data['works_at']['id']
 
-        return data
+class EmployeeCreateSerializer(serializers.ModelSerializer):
 
-    def validate_works_at(self, value):
-        if self.partial:
-            return value
-
-        if not (Company.objects.get(pk=value)):
-            raise serializers.ValidationError("Invalid company ID")
-        return value
+    class Meta:
+        model = Employee
+        fields = '__all__'
 
     def validate(self, data):
         if self.partial:
@@ -67,16 +66,24 @@ class GearSerializer(serializers.ModelSerializer):
     owner = CompanySerializer(read_only=True)
 
     class Meta:
-        model = Employee
+        model = Gear
         fields = '__all__'
 
-    def validate_owner(self, value):
-        if self.partial:
-            return value
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        include_owner_details = self.context.get(
+            'include_owner_details', False)
+        if not include_owner_details:
+            # Remove nested owner field if not required
+            representation['owner'] = representation['owner']['name']
+        return representation
 
-        if not (Company.objects.get(pk=value)):
-            raise serializers.ValidationError("Invalid company ID")
-        return value
+
+class GearCreateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Gear
+        fields = '__all__'
 
     def validate(self, data):
         if self.partial:
@@ -93,5 +100,67 @@ class GearSerializer(serializers.ModelSerializer):
 
         if errors:
             raise serializers.ValidationError(errors)
+
+        return data
+
+
+class GearLogSerializer(serializers.ModelSerializer):
+    company = CompanySerializer(read_only=True)
+    device = GearSerializer(read_only=True)
+    employee = EmployeeSerializer(read_only=True)
+    remaining_days = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GearLog
+        fields = '__all__'
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        include_details = self.context.get('include_details', False)
+        if not include_details:
+            # Remove nested owner field if not required
+            representation['company'] = representation['company']['name']
+            representation['device'] = representation['device']['name']
+            representation['employee'] = representation['employee']['id']
+        return representation
+
+    def get_remaining_days(self, obj):
+        current_date = date.today()
+        remaining_days = (obj.checkout_date +
+                          timedelta(days=obj.period)) - current_date
+        return remaining_days.days
+
+
+class GearLogCreateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GearLog
+        fields = '__all__'
+
+    def validate(self, data):
+        if self.partial:
+            return data
+
+        # raise validation error if a gear is already assigned to an employee
+        # preventing a gear log entry
+        existing_gear_log = GearLog.objects.filter(
+            device=data['device'].id, returned=False)
+        if existing_gear_log.exists():
+            raise serializers.ValidationError(
+                "This gear is already assigned to another employee.")
+
+        # raise validation error if a gear isn't own by a company
+
+        have_owner = Gear.objects.filter(
+            id=data['device'].id, owner=data['company'].id)
+        if not have_owner.exists():
+            raise serializers.ValidationError(
+                "Invalid gear ID or not owned by company.")
+
+        employee = Employee.objects.filter(
+            id=data['employee'].id, works_at=data['company'].id)
+        if not employee.exists():
+            raise serializers.ValidationError(
+                "Invalid employee ID or works at another company.")
 
         return data
