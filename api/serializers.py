@@ -128,7 +128,7 @@ class GearLogSerializer(serializers.ModelSerializer):
         current_date = date.today()
         remaining_days = (obj.checkout_date +
                           timedelta(days=obj.period)) - current_date
-        return remaining_days.days
+        return remaining_days.days if remaining_days.days > 0 else 0
 
 
 class GearLogCreateSerializer(serializers.ModelSerializer):

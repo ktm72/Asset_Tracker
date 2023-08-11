@@ -1,8 +1,9 @@
 from rest_framework import status
-from django.db.models import Count
-
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.db.models import Q, F
+from django.utils.dateparse import parse_date
+from datetime import date, timedelta
 
 from . serializers import CompanySerializer, EmployeeCreateSerializer, EmployeeSerializer, GearSerializer, GearCreateSerializer, GearLogSerializer, GearLogCreateSerializer
 from . models import Company, Employee, Gear, GearLog
@@ -120,7 +121,6 @@ def employee_details(request, employee_id):
 def company_employees(request, company_id):
 
     status_param = request.query_params.get('status', '').lower()
-    from django.db.models import Q
 
     if status_param == 'true':
         query = Q(works_at_id=company_id) & Q(status=True)
@@ -201,10 +201,24 @@ def company_gears(request, company_id):
 def gear_log(request):
     if request.method == 'GET':
 
-        gear = GearLog.objects.all()
-        total = gear.count()
+        returned = request.query_params.get('returned', '')
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get(
+            'end_date', date.today().isoformat())
 
-        serializer = GearLogSerializer(gear, many=True)
+        filters = Q()
+        if returned:
+            filters &= Q(returned=returned.lower() == 'true')
+
+        if start_date_str and end_date_str:
+            start_date = parse_date(start_date_str)
+            end_date = parse_date(end_date_str)
+            filters &= Q(returned_date__range=[start_date, end_date])
+
+        log = GearLog.objects.all().filter(filters)
+        total = log.count()
+
+        serializer = GearLogSerializer(log, many=True)
         return Response({"total_results": total, "results": serializer.data})
 
     if request.method == 'POST':
@@ -239,16 +253,31 @@ def gear_log_details(request, log_id):
 
     elif request.method == 'DELETE':
         try:
-            log = GearLog.objects.get(id=log_id)
+            log = GearLog.objects.get(id=log_id, returned=True)
             log.delete()
             return Response({"message": "GearLog %s deleted!" % log_id}, status=status.HTTP_200_OK)
         except GearLog.DoesNotExist:
-            return Response({"error": "GearLog not exist!"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Log deleted or not returned!"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
 def company_logs(request, company_id):
-    logs = GearLog.objects.filter(company_id=company_id)
+
+    returned = request.query_params.get('returned', '')
+    start_date_str = request.query_params.get('start_date')
+    end_date_str = request.query_params.get(
+        'end_date', date.today().isoformat())
+
+    filters = Q(company_id=company_id)
+    if returned:
+        filters &= Q(returned=returned.lower() == 'true')
+
+    if start_date_str and end_date_str:
+        start_date = parse_date(start_date_str)
+        end_date = parse_date(end_date_str)
+        filters &= Q(returned_date__range=[start_date, end_date])
+
+    logs = GearLog.objects.filter(filters)
     total = logs.count()
 
     serializer = GearLogSerializer(logs, many=True)
@@ -257,7 +286,11 @@ def company_logs(request, company_id):
 
 @api_view(['GET'])
 def employee_logs(request, employee_id):
-    logs = GearLog.objects.filter(employee_id=employee_id)
+    returned = request.query_params.get('returned', '')
+    filters = Q(employee_id=employee_id)
+    if returned:
+        filters &= Q(returned=returned.lower() == 'true')
+    logs = GearLog.objects.filter(filters)
     total = logs.count()
 
     serializer = GearLogSerializer(logs, many=True)

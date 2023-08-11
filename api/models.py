@@ -1,8 +1,6 @@
 from django.db import models
 from datetime import date
-from django.core.exceptions import ValidationError
 from rest_framework.response import Response
-from rest_framework import status
 
 
 class Company(models.Model):
