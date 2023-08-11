@@ -49,7 +49,7 @@
   - api/gear-log/1 ->GET(log details), PATCH(update log), DELETE(delete a log if returned True)
   - api/company/1/logs -> GET(all logs of a company)
   - api/company/1/logs?returned=boolean -> GET(all returned gear logs)
-  - api/company/1/logs?returned=boolean&start_date=Isodateformat -> GET(all returned gear logs within a date range)
+  - api/company/1/logs?returned=boolean&start_date=Isodateformat&remaining_days -> GET(all returned gear logs within a date range, less than remaining_days )
 
   - api/employee/1/logs -> GET(all logs of an employee)
   - api/employee/1/logs?returned=boolean -> GET(all returned gear logs)

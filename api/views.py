@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.db.models import Q, F
+from django.db.models import Q, Case, When, F, Value, IntegerField, ExpressionWrapper
 from django.utils.dateparse import parse_date
 from datetime import date, timedelta
 
@@ -121,7 +121,6 @@ def employee_details(request, employee_id):
 def company_employees(request, company_id):
 
     status_param = request.query_params.get('status', '').lower()
-
     if status_param == 'true':
         query = Q(works_at_id=company_id) & Q(status=True)
         employees = Employee.objects.filter(query)
@@ -215,7 +214,11 @@ def gear_log(request):
             end_date = parse_date(end_date_str)
             filters &= Q(returned_date__range=[start_date, end_date])
 
-        log = GearLog.objects.all().filter(filters)
+        rm_days = request.query_params.get('remaining_days', '')
+        if rm_days:
+            filters &= Q(remaining_days__lt=rm_days)
+
+        log = GearLog.objects.filter(filters)
         total = log.count()
 
         serializer = GearLogSerializer(log, many=True)
@@ -277,8 +280,23 @@ def company_logs(request, company_id):
         end_date = parse_date(end_date_str)
         filters &= Q(returned_date__range=[start_date, end_date])
 
+    remaining_days = request.query_params.get('remaining_days', '')
+
     logs = GearLog.objects.filter(filters)
-    total = logs.count()
+
+    if remaining_days:
+        try:
+            remaining_days = int(remaining_days)
+            if remaining_days >= 0:
+                current_date = date.today()
+                logs = [log for log in logs if (
+                    log.checkout_date + timedelta(days=log.period) - current_date).days <= remaining_days]
+            else:
+                return Response({"error": "Invalid remaining_days value"}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({"error": "Invalid remaining_days value"}, status=status.HTTP_400_BAD_REQUEST)
+
+    total = len(logs)
 
     serializer = GearLogSerializer(logs, many=True)
     return Response({"total_results": total, "results": serializer.data})
