@@ -105,37 +105,17 @@ class GearCreateSerializer(serializers.ModelSerializer):
 
 
 class GearLogSerializer(serializers.ModelSerializer):
-    company = CompanySerializer(read_only=True)
-    device = GearSerializer(read_only=True)
-    employee = EmployeeSerializer(read_only=True)
     remaining_days = serializers.SerializerMethodField()
 
     class Meta:
         model = GearLog
         fields = '__all__'
 
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        include_details = self.context.get('include_details', False)
-        if not include_details:
-            # Remove nested owner field if not required
-            representation['company'] = representation['company']['name']
-            representation['device'] = representation['device']['name']
-            representation['employee'] = representation['employee']['id']
-        return representation
-
     def get_remaining_days(self, obj):
         current_date = date.today()
         remaining_days = (obj.checkout_date +
                           timedelta(days=obj.period)) - current_date
         return remaining_days.days if remaining_days.days > 0 else 0
-
-
-class GearLogCreateSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = GearLog
-        fields = '__all__'
 
     def validate(self, data):
         if self.partial:
@@ -164,3 +144,20 @@ class GearLogCreateSerializer(serializers.ModelSerializer):
                 "Invalid employee ID or works at another company.")
 
         return data
+
+
+class GearLogDetailsSerializer(serializers.ModelSerializer):
+    company = CompanySerializer()
+    device = GearSerializer()
+    employee = EmployeeSerializer()
+    remaining_days = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GearLog
+        fields = '__all__'
+
+    def get_remaining_days(self, obj):
+        current_date = date.today()
+        remaining_days = (obj.checkout_date +
+                          timedelta(days=obj.period)) - current_date
+        return remaining_days.days if remaining_days.days > 0 else 0

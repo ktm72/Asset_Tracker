@@ -1,11 +1,14 @@
+from django.core.paginator import Paginator
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.db.models import Q, Case, When, F, Value, IntegerField, ExpressionWrapper
+from django.db.models import Q
+
 from django.utils.dateparse import parse_date
 from datetime import date, timedelta
 
-from . serializers import CompanySerializer, EmployeeCreateSerializer, EmployeeSerializer, GearSerializer, GearCreateSerializer, GearLogSerializer, GearLogCreateSerializer
+from . serializers import CompanySerializer, EmployeeCreateSerializer, EmployeeSerializer, GearSerializer, GearCreateSerializer, GearLogSerializer, GearLogDetailsSerializer
 from . models import Company, Employee, Gear, GearLog
 
 
@@ -69,11 +72,22 @@ def company_details(request, company_id):
 @api_view(['GET', 'POST'])
 def employee(request):
     if request.method == 'GET':
-        employees = Employee.objects.all()
+        employees = Employee.objects.all().order_by('id')
         total = employees.count()
 
-        serializer = EmployeeSerializer(employees, many=True)
-        return Response({"total_results": total, "results": serializer.data})
+        try:
+            page_number = request.query_params.get('page', None)
+            if page_number:
+                page_limit = request.query_params.get('limit', 3)
+                paginator = Paginator(employees, page_limit)
+                serializer = EmployeeSerializer(
+                    paginator.page(page_number), many=True)
+                return Response({"max_results": paginator.count, 'total_pages': paginator.num_pages, "results": serializer.data})
+            else:
+                serializer = EmployeeSerializer(employees, many=True)
+                return Response({"total_results": total, "results": serializer.data})
+        except Exception as e:
+            return Response({'message': 'Invalid Page!'}, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'POST':
         serializer = EmployeeCreateSerializer(data=request.data)
@@ -216,16 +230,25 @@ def gear_log(request):
 
         rm_days = request.query_params.get('remaining_days', '')
         if rm_days:
-            filters &= Q(remaining_days__lt=rm_days)
+            try:
+                rm_days = int(rm_days)
+                if rm_days >= 0:
+                    current_date = date.today()
+                    logs = [log for log in logs if (
+                        log.checkout_date + timedelta(days=log.period) - current_date).days <= rm_days]
+                else:
+                    return Response({"error": "Invalid remaining_days value"}, status=status.HTTP_400_BAD_REQUEST)
+            except ValueError:
+                return Response({"error": "Invalid remaining_days value"}, status=status.HTTP_400_BAD_REQUEST)
 
         log = GearLog.objects.filter(filters)
-        total = log.count()
+        total = len(log)
 
         serializer = GearLogSerializer(log, many=True)
         return Response({"total_results": total, "results": serializer.data})
 
     if request.method == 'POST':
-        serializer = GearLogCreateSerializer(data=request.data)
+        serializer = GearLogSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -236,9 +259,9 @@ def gear_log(request):
 def gear_log_details(request, log_id):
     if request.method == 'GET':
         try:
-            log = GearLog.objects.get(id=log_id)
-            serializer = GearLogSerializer(log, many=False, context={
-                                           'include_details': True})
+            log = GearLog.objects.select_related(
+                'company', 'device', 'employee').get(id=log_id)
+            serializer = GearLogDetailsSerializer(log, many=False)
             return Response(serializer.data)
         except GearLog.DoesNotExist:
             return Response({"error": "GearLog not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -246,7 +269,7 @@ def gear_log_details(request, log_id):
     elif request.method == 'PATCH':
         data = request.data
         log = GearLog.objects.get(id=log_id)
-        serializer = GearLogCreateSerializer(log, data=data, partial=True)
+        serializer = GearLogSerializer(log, data=data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
@@ -271,7 +294,7 @@ def company_logs(request, company_id):
     end_date_str = request.query_params.get(
         'end_date', date.today().isoformat())
 
-    filters = Q(company_id=company_id)
+    filters = Q(company=company_id)
     if returned:
         filters &= Q(returned=returned.lower() == 'true')
 
@@ -280,10 +303,9 @@ def company_logs(request, company_id):
         end_date = parse_date(end_date_str)
         filters &= Q(returned_date__range=[start_date, end_date])
 
-    remaining_days = request.query_params.get('remaining_days', '')
-
     logs = GearLog.objects.filter(filters)
 
+    remaining_days = request.query_params.get('remaining_days', '')
     if remaining_days:
         try:
             remaining_days = int(remaining_days)
@@ -309,7 +331,7 @@ def employee_logs(request, employee_id):
     if returned:
         filters &= Q(returned=returned.lower() == 'true')
     logs = GearLog.objects.filter(filters)
-    total = logs.count()
+    total = len(logs)
 
     serializer = GearLogSerializer(logs, many=True)
     return Response({"total_results": total, "results": serializer.data})

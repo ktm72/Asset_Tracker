@@ -8,6 +8,9 @@ class Company(models.Model):
     location = models.TextField()
     employee_size = models.IntegerField()
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class Employee(models.Model):
     GENDER_CHOICES = [
@@ -24,12 +27,18 @@ class Employee(models.Model):
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
     status = models.BooleanField(default=True)
 
+    def __str__(self) -> str:
+        return self.first_name + self.last_name
+
 
 class Gear(models.Model):
     owner = models.ForeignKey(
         Company, on_delete=models.CASCADE, related_name='owner')
     name = models.CharField(max_length=150)
     gear_type = models.CharField(max_length=100)
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class GearLog(models.Model):

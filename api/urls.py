@@ -20,7 +20,7 @@ urlpatterns = [
 
     path('gear-log', views.gear_log, name='gear_log'),
     path('gear-log/<int:log_id>', views.gear_log_details, name='gear_log_details'),
-    path('company/<int:company_id>/logs',
+    path('company/<int:company_id>/logs/',
          views.company_logs, name='company_logs'),
     path('employee/<int:employee_id>/logs',
          views.employee_logs, name='employee_logs'),

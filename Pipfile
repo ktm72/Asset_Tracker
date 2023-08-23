@@ -8,6 +8,7 @@ django = "*"
 django-environ = "*"
 psycopg = {version = "*", extras = ["binary"]}
 djangorestframework = "*"
+django-debug-toolbar = "*"
 
 [dev-packages]
 
