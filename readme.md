@@ -2,7 +2,7 @@
 
 ![Different Relational Table](./content/assets_tracker_erd.png)
 
-# Install Pipenv if isn't installed
+# Install Pipenv if isn't installed or virtual env
 
 `pip install pipenv`
 
@@ -13,6 +13,19 @@
 ## Activate virtualenv
 
 `pipenv shell`
+
+# For, virtual env
+`sudo apt install python3-venv`
+
+### create venv 
+`python3 -m venv env`
+
+### activate
+`source env/bin/activate`
+
+## Install Dependencies
+`pip install -r requirements.txt`
+
 
 ## database
 
